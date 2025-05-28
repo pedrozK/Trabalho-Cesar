@@ -1,0 +1,232 @@
+
+;==========================================================================
+; √Årea Reservada
+
+		org		32512
+STACK:
+msg1:	dab	'ROBOS PARADOS'
+	dw	0
+msg2: 	dab	'NOME DO ROBO'
+	dw	0
+msg3:	dab 	'NAO HA ROBOS LIVRES                 ';<- tem aspas aqui
+	dw	0
+Ratv: 	dw 	0
+cmsg3:	dw	0
+indRobo:dw	0
+ROBOS:	dw	49
+atv:	dw	0
+	dw	0
+nome: 	daw	[10]
+posx:	dw
+posy:	dw
+vx:	dw
+vy:	dw
+
+
+; Acesso em 16 bits
+		org		65408
+		daw		[31]		; √Årea reservada
+IVET:	dw		0			; Vetor de interrup√ß√£o
+
+; Acesso em 8 bits
+		dab		[23]
+TIMDT:	db		250
+INTS:	db		0			; INTERRUPT STATUS: IP x x x . x x IPStec IPStim
+INTE:	db		0			; INTERRUPT ENABLE: IE x x x . x x IEStec IEStim
+TECST:	db		0			; Status do teclado
+TECDT:	db		0			; Dado do teclado
+VISOR:	dab		[36]		; Portas de acesso ao visor
+
+
+;==========================================================================
+; Programa Principal onde ser· escrito no visor informacoes dos robos
+	org	0
+
+PARADOS:				
+	mov #VISOR, R5			
+	mov #msg1, R0			
+	dec  R0				
+	mov #13, R1
+LPARADOS:
+	mov (R0)+, (R5)+
+	dec R5			;escrita da mensagem inicial que os robos estao parados
+	dec R0			;ela fica escrita ate ser detectada a tecla 'n' ou 'N' para
+	dec R1			;a ativacao dos robos
+	beq PARADOS
+	cmp TECST, #h80
+	bne LPARADOS
+	jsr R7,NOVO
+	cmp Ratv, #0
+	beq LPARADOS
+
+MOVIMENTO:
+;	hlt
+;	mov 7(R2),R3--------
+;	mov 65514, R4---------
+	mov #VISOR, R5		;funcao que mostrara no visor informacoes do robo atual
+;	mov R4, (R5)
+	mov 6(R2),(R5)+
+	dec R5
+	mov 8(R2), (R5)+
+	dec R5
+	mov 10(R2), (R5)+
+	dec R5
+	mov 12(R2), (R5)+
+	dec R5
+	mov 14(R2), (R5)+
+	dec R5
+	mov #' ', (R5)+
+	dec R5
+	mov #'X',(R5)+
+	dec R5
+	mov #':', (R5)+
+;	jsr numeros
+	add #5, R5
+	mov #'Y',(R5)+
+	dec R5
+	mov #':', (R5)+
+;	jsr numeros
+	add #5, R5
+	mov #'V',(R5)+
+	dec R5
+	mov #'x',(R5)+
+	dec R5
+	mov #':',(R5)+
+;	jsr Numeros
+	add #3,R5
+	mov #'V',(R5)+
+	dec R5
+	mov #'y',(R5)+
+	dec R5
+	mov #':',(R5)+
+;	jsr Numeros
+
+	jmp MOVIMENTO
+	HLT
+;=========================================================================
+;funcoes para adicionar novo robo 
+NOVO:	;clr TECST
+	cmp TECDT,#'N'
+	beq jaddr
+	cmp TECDT #'n'		;funcao que verifica qual tecla foi digitada 
+	beq jaddr		;
+RETNOVO:nop
+	clr TECST
+	rts R7
+jaddr:	
+;	mov #0, TECST
+;	mov #4,Ratv
+	jsr R7,ADDNOVO
+	nop
+	jmp RETNOVO
+
+ADDNOVO:
+	cmp #4, Ratv		;ira verificar se ha robo disponivel
+	bgt Pnome		;caso n„o, pulara para a funcao que escrevera a 
+	jmp NADD		;mensagem de indiponibilidade
+Pnome:	
+	jsr R7, CLEANVISOR
+	mov #12, R1		
+	mov #msg2, R0
+	mov #VISOR, R5
+	dec  R0
+LMSG2:	mov (R0)+, (R5)+	;escreve a mesnagem:'NOME DO ROBOx:'
+	dec R5
+	dec R0
+	dec R1
+	beq nstep
+	jmp LMSG2
+nstep: 	
+	jsr R7, QUALROBO	;procura o valor de x na mensagem: 'NOME DO ROBOx:'
+	mov (R2),(R5)+
+	dec R5
+	mov #':'(R5)+
+	dec R5
+LTPnome:
+	clr TECST
+LTPmais:
+	cmp TECST, #h80		
+	bne LTPmais
+	cmp TECDT,#8		;esse trecho de codigo verificara se foi pressionado alguma tecla
+	beq BSP			;se sim ele vai verificar primeiro se foi BACKSPACE, segundo se foi
+	cmp TECDT,#13		;ENTER e depois se ainda eh possivel escrever no visor
+	beq ENTER
+	cmp #65535, R5
+	bge ifum
+	jmp LTPnome		
+ifum:	cmp R5, #VISOR
+	bge escreve
+	 jmp LTPnome
+escreve:mov TECDT, (R5)+
+	dec R5
+	jmp LTPnome
+BSP:	jsr R7,BACKSPACE
+	jmp LTPnome
+ENTER:  
+	mov 65514, 6(R2)
+;	mov 6(R2),R3
+;	mov nome, R4
+
+	mov 65515, 8(R2)	;o enter movera o nome escrito no visor para o endereco que 
+	mov 65516, 10(R2)	;guarda o nome do robo atual
+	mov 65517, 12(R2)	
+	mov 65518, 14(R2)
+	
+	inc Ratv
+	jmp RETNOVO
+
+BACKSPACE:
+	cmp R5, #65515
+	blt FimBSP		;o BackSpace apagara a ultima letra escrita no visor
+	dec R5			
+	mov #' ',(R5)+
+	sub #2, R5
+FimBSP: rts R7
+	
+
+;--------------------------------------------------
+NADD:	mov #0,cmsg3			;essa uncao mostrara no visor a seguinte mensagem
+nmais:	mov #36, R1			;por 2 segundos: 'NAO HA ROBOS LIVRES'
+	mov #msg3, R0			
+	mov #VISOR, R5
+	dec  R0
+LNADD:
+	mov (R0)+, (R5)+
+	dec R5
+	dec R0
+	cmp #8, cmsg3			;como o timer sera programado com 250ms
+	bgt LNADD			;È preciso conferir 8 vezes
+	dec R1
+	beq nmais
+FADDNOVO:
+	rts R7
+;--------------------------------------------------
+
+
+QUALROBO:			
+	mov #ROBOS, R2			;essa funcao achara qual o proximo robo livre
+LQUAL:	tst 1(R2)
+	jmp FQUAL
+	beq FQUAL
+	add #24, R2
+;;;;;;;	add #24, indRobo
+	jmp LQUAL
+FQUAL:
+	rts R7
+;---------------------------------------------------
+CLEANVISOR:
+	mov #36, R1
+	mov #VISOR, R5			;funcao que limpa o visor para corrigir erro
+	mov #0,R0			;de armazenamento de lixo no visor
+Lclean:	mov R0,(R5)+
+	dec R5
+	sob R1,Lclean
+	rts R7
+	
+
+
+
+
+
+
+ 
